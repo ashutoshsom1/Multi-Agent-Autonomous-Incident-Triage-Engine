@@ -1,0 +1,15 @@
+{
+  "alert_id": "prom-alert-dbpool-412",
+  "service_name": "order-service-api",
+  "environment": "production",
+  "severity": "CRITICAL",
+  "timestamp": "2026-09-24T14:28:12Z",
+  "description": "HighHttp5xxErrorRate: 450 err/sec on /v2/orders/checkout with connection pool timeout",
+  "labels": {
+    "alertname": "ConnectionPoolExhausted",
+    "namespace": "production",
+    "pod_prefix": "order-service-api-7d6f549c",
+    "cluster": "prod-us-east-1",
+    "region": "us-east-1"
+  }
+}

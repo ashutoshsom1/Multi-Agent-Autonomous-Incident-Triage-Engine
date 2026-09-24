@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  postgres-checkpointer:
+    image: postgres:16-alpine
+    container_name: incidentops-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: incidentops
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: incidentops_checkpoints
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U incidentops -d incidentops_checkpoints"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  incidentops-engine:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: incidentops-engine
+    restart: always
+    depends_on:
+      postgres-checkpointer:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      LLM_PROVIDER: anthropic
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PRIMARY_MODEL: claude-3-5-sonnet-20241022
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-incidentops-dev-secret-key-hmac-sha256-signature}
+      POSTGRES_DB_URI: postgresql://incidentops:secretpassword@postgres-checkpointer:5432/incidentops_checkpoints
+      ENABLE_POSTGRES_CHECKPOINTER: "true"
+      USE_MOCK_MCP: "true"
+      SERVER_PORT: 8000
+    ports:
+      - "8000:8000"
+    command: ["incidentops", "serve", "--host", "0.0.0.0", "--port", "8000"]
+
+  incidentops-dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: incidentops-dashboard
+    restart: always
+    depends_on:
+      - incidentops-engine
+    environment:
+      APP_ENV: production
+      PRIMARY_MODEL: claude-3-5-sonnet-20241022
+      USE_MOCK_MCP: "true"
+    ports:
+      - "8501:8501"
+    command: ["streamlit", "run", "src/incidentops/dashboard/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+
+volumes:
+  pgdata:

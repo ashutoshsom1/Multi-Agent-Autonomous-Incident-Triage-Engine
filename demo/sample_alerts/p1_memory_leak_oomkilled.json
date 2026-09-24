@@ -1,0 +1,15 @@
+{
+  "alert_id": "prom-alert-oom-payment-canary",
+  "service_name": "payment-gateway",
+  "environment": "production",
+  "severity": "CRITICAL",
+  "timestamp": "2026-09-24T10:14:02Z",
+  "description": "KubePodCrashLooping: container_memory_working_set_bytes exceeded 2.0GiB cgroup quota (exit 137)",
+  "labels": {
+    "alertname": "PodOOMKilled",
+    "namespace": "production",
+    "pod_prefix": "payment-gateway-canary-6b99c8f",
+    "cluster": "prod-us-east-1",
+    "region": "us-east-1"
+  }
+}

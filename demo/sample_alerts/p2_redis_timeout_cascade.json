@@ -1,0 +1,15 @@
+{
+  "alert_id": "datadog-alert-redis-timeout-902",
+  "service_name": "checkout-service",
+  "environment": "production",
+  "severity": "HIGH",
+  "timestamp": "2026-09-24T16:02:18Z",
+  "description": "RedisCommandTimeout: downstream cache node redis-primary-0.redis-ha unreachable within 250ms threshold",
+  "labels": {
+    "alertname": "RedisCacheTimeout",
+    "namespace": "production",
+    "pod_prefix": "checkout-service-84fa12",
+    "cluster": "prod-eu-west-1",
+    "region": "eu-west-1"
+  }
+}
