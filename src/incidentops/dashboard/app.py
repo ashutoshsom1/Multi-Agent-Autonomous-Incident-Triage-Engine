@@ -52,8 +52,39 @@ def main():
     st.sidebar.caption("Autonomous SRE Multi-Agent Triage Engine")
     st.sidebar.markdown("---")
 
-    st.sidebar.subheader("System Status")
-    st.sidebar.markdown(f"**Model:** `{settings.primary_model}`")
+    st.sidebar.subheader("⚙️ LLM Provider & Model")
+    provider_options = ["ollama (Local)", "anthropic (Claude 3.5)", "gemini", "mock (Instant Demo)"]
+    current_index = 0 if settings.llm_provider == "ollama" else (1 if settings.llm_provider == "anthropic" else 3)
+    provider_choice = st.sidebar.selectbox("Active LLM Provider:", provider_options, index=current_index)
+
+    if "ollama" in provider_choice:
+        settings.llm_provider = "ollama"
+        try:
+            import httpx
+            r = httpx.get(f"{settings.ollama_base_url.rstrip('/')}/api/tags", timeout=2.0)
+            models = [m["name"] for m in r.json().get("models", [])]
+            available_models = [m for m in models if "embed" not in m] or ["qwen3.5:9b", "gemma4:e2b", "llama3.1"]
+        except Exception:
+            available_models = ["qwen3.5:9b", "gemma4:e2b", "llama3.1"]
+
+        selected_model = st.sidebar.selectbox(
+            "Local Ollama Model:",
+            available_models,
+            index=available_models.index(settings.ollama_model) if settings.ollama_model in available_models else 0
+        )
+        settings.ollama_model = selected_model
+        st.sidebar.caption(f"⚡ Connected to `{settings.ollama_base_url}`")
+    elif "anthropic" in provider_choice:
+        settings.llm_provider = "anthropic"
+    elif "gemini" in provider_choice:
+        settings.llm_provider = "gemini"
+    else:
+        settings.llm_provider = "mock"
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("System Architecture")
+    st.sidebar.markdown(f"**Active Provider:** `{settings.llm_provider}`")
+    st.sidebar.markdown(f"**Active Model:** `{settings.ollama_model if settings.llm_provider == 'ollama' else settings.primary_model}`")
     st.sidebar.markdown(f"**Orchestrator:** `LangGraph StateGraph`")
     st.sidebar.markdown(f"**Protocol:** `Model Context Protocol (MCP)`")
     st.sidebar.markdown(f"**Loop Guard:** `<= {settings.max_iteration_guard} iterations`")

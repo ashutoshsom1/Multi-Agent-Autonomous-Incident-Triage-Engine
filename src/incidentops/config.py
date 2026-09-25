@@ -25,13 +25,21 @@ class Settings(BaseSettings):
     cors_origins: List[str] = Field(default=["*"], alias="CORS_ORIGINS")
 
     # LLM Settings
-    llm_provider: Literal["anthropic", "gemini", "openai", "mock"] = "anthropic"
+    llm_provider: Literal["anthropic", "gemini", "openai", "ollama", "mock"] = Field(
+        default="ollama",
+        alias="LLM_PROVIDER"
+    )
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     primary_model: str = "claude-3-5-sonnet-20241022"
     fallback_model: str = "gemini-2.5-flash"
     llm_timeout_seconds: int = 45
+
+    # Local Ollama Settings (for local testing without external API keys)
+    ollama_base_url: str = Field(default="http://127.0.0.1:11434", alias="OLLAMA_BASE_URL")
+    ollama_model: str = Field(default="qwen3.5:9b", alias="OLLAMA_MODEL")
+    ollama_timeout_seconds: int = 120
 
     # FSM & Loop Bounds
     max_iteration_guard: int = 3
