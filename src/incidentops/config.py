@@ -1,7 +1,6 @@
 """Enterprise configuration manager for IncidentOps AI."""
 
-import os
-from typing import Literal
+from typing import List, Literal, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,9 +15,14 @@ class Settings(BaseSettings):
     # Environment & Application
     app_name: str = "IncidentOps AI - Autonomous Incident Triage Engine"
     app_env: Literal["development", "staging", "production", "test"] = "development"
-    debug: bool = True
+    debug: bool = False
     server_host: str = "0.0.0.0"
     server_port: int = 8000
+
+    # Security & API Authentication
+    api_key: str = Field(default="", alias="INCIDENTOPS_API_KEY")
+    enforce_auth: bool = Field(default=False, alias="ENFORCE_API_KEY_AUTH")
+    cors_origins: List[str] = Field(default=["*"], alias="CORS_ORIGINS")
 
     # LLM Settings
     llm_provider: Literal["anthropic", "gemini", "openai", "mock"] = "anthropic"
@@ -27,6 +31,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     primary_model: str = "claude-3-5-sonnet-20241022"
     fallback_model: str = "gemini-2.5-flash"
+    llm_timeout_seconds: int = 45
 
     # FSM & Loop Bounds
     max_iteration_guard: int = 3
@@ -43,6 +48,8 @@ class Settings(BaseSettings):
     # Checkpoint Persistence
     postgres_uri: str = Field(default="", alias="POSTGRES_DB_URI")
     enable_postgres_checkpointer: bool = False
+    postgres_pool_min_size: int = 2
+    postgres_pool_max_size: int = 20
 
     # Observability & MCP Providers
     prometheus_url: str = "http://localhost:9090"
@@ -50,6 +57,12 @@ class Settings(BaseSettings):
     elasticsearch_url: str = "http://localhost:9200"
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
     k8s_namespace_default: str = "production"
+    mcp_timeout_seconds: int = 15
+
+    # Logging & Telemetry
+    log_level: str = "INFO"
+    log_format: Literal["json", "text"] = "json"
+    metrics_enabled: bool = True
 
     # Simulation / Mock Mode
     use_mock_mcp: bool = True

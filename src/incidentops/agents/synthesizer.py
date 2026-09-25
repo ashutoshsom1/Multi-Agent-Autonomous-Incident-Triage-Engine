@@ -5,20 +5,29 @@ calculates blast radius, and drafts the Human-in-the-Loop Slack Card payload.
 """
 
 import json
+import time
 from typing import Any, Dict
 from incidentops.models.state import IncidentState
-from incidentops.models.rca import IncidentTriageReport, RootCauseAnalysis, ProposedRemediation, SlackBlockKitCard
+from incidentops.models.rca import IncidentTriageReport
 from incidentops.prompts.root_cause_synthesizer_prompt import ROOT_CAUSE_SYNTHESIS_PROMPT
 from incidentops.agents.llm_factory import llm_engine
+from incidentops.telemetry import logger, metrics
 
 
 async def root_cause_synthesizer_node(state: IncidentState) -> Dict[str, Any]:
     """Execute Root Cause Synthesizer to correlate multi-modal findings into an RCA and remediation plan."""
+    start_time = time.time()
     alert_raw = state.get("alert_raw", {})
     service_name = alert_raw.get("service_name", "unknown-service")
     log_evidence = state.get("log_evidence", {})
     metrics_evidence = state.get("metrics_evidence", {})
     code_evidence = state.get("code_evidence", {})
+    thread_id = state.get("thread_id", "unknown")
+
+    logger.info(
+        f"Root Cause Synthesizer correlating multi-agent evidence for {service_name}",
+        extra={"incident_id": thread_id, "worker": "synthesizer"}
+    )
 
     # Formulate multi-modal evidence prompt
     user_prompt = f"""Multi-Agent Incident Diagnostics Synthesis Request:
@@ -66,11 +75,22 @@ Calculate the blast radius, recovery time, and formulate the interactive Slack c
         }
     }
 
-    rca_report = await llm_engine.generate_structured(
-        system_prompt=ROOT_CAUSE_SYNTHESIS_PROMPT,
-        user_message=user_prompt,
-        response_model=IncidentTriageReport,
-        mock_fallback=mock_report
+    try:
+        rca_report = await llm_engine.generate_structured(
+            system_prompt=ROOT_CAUSE_SYNTHESIS_PROMPT,
+            user_message=user_prompt,
+            response_model=IncidentTriageReport,
+            mock_fallback=mock_report
+        )
+    except Exception as e:
+        logger.error(f"Synthesizer LLM error: {e}. Utilizing fallback synthesis.", exc_info=True)
+        rca_report = IncidentTriageReport.model_validate(mock_report)
+
+    duration = time.time() - start_time
+    metrics.record_worker_execution("synthesizer", duration)
+    logger.info(
+        f"Root Cause Synthesizer finished in {duration:.2f}s (Confidence: {rca_report.root_cause_analysis.confidence_percentage}%)",
+        extra={"incident_id": thread_id, "worker": "synthesizer", "duration_ms": duration * 1000}
     )
 
     return {"final_rca": rca_report.model_dump()}

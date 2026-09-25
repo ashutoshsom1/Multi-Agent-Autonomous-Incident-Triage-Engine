@@ -1,6 +1,7 @@
 """LangGraph StateGraph builder for IncidentOps AI.
 
 Compiles parallel diagnostic fan-out, fan-in synthesis, and human-in-the-loop approval gate.
+Supports persistent PostgreSQL checkpointing with connection pooling and in-memory fallback.
 """
 
 from typing import Any, Optional
@@ -16,6 +17,7 @@ from incidentops.agents.codebase_inspector import codebase_inspector_node
 from incidentops.agents.synthesizer import root_cause_synthesizer_node
 from incidentops.agents.approval_gate import human_approval_gate_node
 from incidentops.agents.remediation_executor import remediation_executor_node
+from incidentops.telemetry import logger
 
 
 def build_incidentops_graph(checkpointer: Optional[Any] = None) -> Any:
@@ -34,12 +36,22 @@ def build_incidentops_graph(checkpointer: Optional[Any] = None) -> Any:
             try:
                 from langgraph.checkpoint.postgres import PostgresSaver
                 import psycopg
-                # Use connection pool or connection
-                conn = psycopg.connect(settings.postgres_uri, autocommit=True)
+                from psycopg_pool import ConnectionPool
+
+                pool = ConnectionPool(
+                    settings.postgres_uri,
+                    min_size=settings.postgres_pool_min_size,
+                    max_size=settings.postgres_pool_max_size,
+                    kwargs={"autocommit": True}
+                )
+                conn = pool.getconn()
                 checkpointer = PostgresSaver(conn)
                 checkpointer.setup()
+                logger.info("Initialized PostgreSQL StateGraph checkpointer with connection pool.")
             except Exception as e:
-                # Graceful fallback to in-memory checkpointer if Postgres is not reachable
+                logger.warning(
+                    f"PostgreSQL checkpointer initialization failed ({e}). Falling back to in-memory checkpointer."
+                )
                 checkpointer = MemorySaver()
         else:
             checkpointer = MemorySaver()

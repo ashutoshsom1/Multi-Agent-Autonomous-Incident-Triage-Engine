@@ -4,31 +4,56 @@ Extracts, filters, and analyzes log streams from Loki, Elasticsearch, or K8s pod
 """
 
 import json
+import time
 from typing import Any, Dict
 from incidentops.models.state import IncidentState
 from incidentops.models.logs import LogDiagnosticResult
 from incidentops.prompts.log_analyzer_prompt import LOG_DIAGNOSTIC_AGENT_PROMPT
 from incidentops.mcp.tools import mcp__loki_search, mcp__k8s_get_pod_logs
 from incidentops.agents.llm_factory import llm_engine
+from incidentops.telemetry import logger, metrics
 
 
 async def log_analyzer_node(state: IncidentState) -> Dict[str, Any]:
     """Execute log diagnostic worker to extract stack traces and error rate spikes."""
+    start_time = time.time()
     alert_raw = state.get("alert_raw", {})
     service_name = alert_raw.get("service_name", "unknown-service")
     labels = alert_raw.get("labels", {})
     namespace = labels.get("namespace", "production")
+    thread_id = state.get("thread_id", "unknown")
 
-    # 1. MCP Tool Execution (Loki and K8s pod logs)
-    loki_results = await mcp__loki_search(
-        query=f'{{app="{service_name}", namespace="{namespace}"}} |= "error"',
-        limit=50
+    logger.info(
+        f"Log Diagnostic Agent starting analysis for {service_name}",
+        extra={"incident_id": thread_id, "worker": "log_analyzer"}
     )
-    k8s_results = await mcp__k8s_get_pod_logs(
-        namespace=namespace,
-        pod_name=f"{service_name}-worker",
-        previous=True
-    )
+
+    # 1. MCP Tool Execution with Resilience
+    loki_results: Dict[str, Any] = {}
+    k8s_results: Dict[str, Any] = {}
+
+    try:
+        loki_results = await mcp__loki_search(
+            query=f'{{app="{service_name}", namespace="{namespace}"}} |= "error"',
+            limit=50
+        )
+        metrics.record_mcp_call("mcp__loki_search", "success")
+    except Exception as e:
+        logger.warning(f"Loki search encountered error: {e}", exc_info=True)
+        metrics.record_mcp_call("mcp__loki_search", "error")
+        loki_results = {"status": "error", "error": str(e), "streams": []}
+
+    try:
+        k8s_results = await mcp__k8s_get_pod_logs(
+            namespace=namespace,
+            pod_name=f"{service_name}-worker",
+            previous=True
+        )
+        metrics.record_mcp_call("mcp__k8s_get_pod_logs", "success")
+    except Exception as e:
+        logger.warning(f"K8s pod log retrieval encountered error: {e}", exc_info=True)
+        metrics.record_mcp_call("mcp__k8s_get_pod_logs", "error")
+        k8s_results = {"status": "error", "error": str(e), "raw_logs": ""}
 
     # 2. Formulate LLM message with tool output
     user_prompt = f"""Target Service: {service_name} (namespace: {namespace})
@@ -66,12 +91,22 @@ Analyze these logs. Extract error fingerprint, stack trace snippet (max 30 lines
         ]
     }
 
-    # 4. Invoke LLM Engine
-    diagnostic_result = await llm_engine.generate_structured(
-        system_prompt=LOG_DIAGNOSTIC_AGENT_PROMPT,
-        user_message=user_prompt,
-        response_model=LogDiagnosticResult,
-        mock_fallback=mock_result
+    try:
+        diagnostic_result = await llm_engine.generate_structured(
+            system_prompt=LOG_DIAGNOSTIC_AGENT_PROMPT,
+            user_message=user_prompt,
+            response_model=LogDiagnosticResult,
+            mock_fallback=mock_result
+        )
+    except Exception as e:
+        logger.error(f"Log Analyzer LLM error: {e}. Utilizing fallback diagnostics.", exc_info=True)
+        diagnostic_result = LogDiagnosticResult.model_validate(mock_result)
+
+    duration = time.time() - start_time
+    metrics.record_worker_execution("log_analyzer", duration)
+    logger.info(
+        f"Log Diagnostic Agent completed in {duration:.2f}s (Fingerprint: {diagnostic_result.error_fingerprint[:40]})",
+        extra={"incident_id": thread_id, "worker": "log_analyzer", "duration_ms": duration * 1000}
     )
 
     return {"log_evidence": diagnostic_result.model_dump()}
