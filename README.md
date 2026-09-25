@@ -199,22 +199,7 @@ signature = "v0=" + HMAC-SHA256(SLACK_SIGNING_SECRET, "v0:" + timestamp + ":" + 
 └── README.md
 ```
 
----
 
-## 💡 Strategic Interview Talking Points
-
-- **Contrast with Toy Agents:** Naive ReAct loops get stuck in infinite token-burning loops; IncidentOps AI uses **typed Pydantic schemas, explicit loop guards (`iteration_count <= 3`), and a PostgreSQL checkpointer** for crash recovery.
-- **The MCP Advantage:** MCP cleanly separates API keys from the LLM context window, making your agent enterprise-compliant.
-- **Production Benchmarks:** **88-second MTTT** (vs. 38 mins manual) and **100% prevention of accidental outages** via the Slack interactive HMAC approval gate.
-
----
-
-## 👤 Author
-**Ashutosh Somvanshi**  
-GitHub: [@ashutoshsom1](https://github.com/ashutoshsom1)  
-Email: [ashutosh.somvanshi@nihilent.com](mailto:ashutosh.somvanshi@nihilent.com)
-
----
 
 ## 📄 License
 This project is licensed under the Apache 2.0 License.
