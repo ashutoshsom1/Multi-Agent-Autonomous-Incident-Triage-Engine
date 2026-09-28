@@ -306,7 +306,8 @@ def main():
             final_state = rem_res.get("state", {})
             st.markdown("---")
             st.subheader("4. Remediation Execution Log")
-            st.success(f"Execution State: `{final_res_status := final_state.get('remediation_status')}`")
+            final_res_status = final_state.get("remediation_status", "UNKNOWN")
+            st.success(f"Execution State: `{final_res_status}`")
             for log in final_state.get("execution_logs", []):
                 st.code(log, language="bash")
 
